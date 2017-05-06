@@ -26,6 +26,7 @@ class model_morphodita_parsito : public model {
   virtual input_format* new_tokenizer(const string& options) const override;
   virtual bool tag(sentence& s, const string& options, string& error) const override;
   virtual bool parse(sentence& s, const string& options, string& error) const override;
+  virtual bool parse_document(vector<sentence>& document, unsigned max_sentence_len, double keep_boundary_bonus, const string& options, string& error) const override;
 
   static model* load(istream& is);
 
