@@ -113,7 +113,12 @@ bool model_morphodita_parsito::parse(sentence& s, const string& options, string&
   return true;
 }
 
-bool parse_document(vector<sentence>& document, unsigned max_sentence_len, double keep_boundary_bonus, const string& options, string& error) const {
+bool model_morphodita_parsito::parse_document(vector<sentence>& document, const string& options, string& error) const {
+  for (auto&& s : document)
+    if (!parse(s, options, error))
+      return false;
+
+  return true;
 }
 
 model* model_morphodita_parsito::load(istream& is) {
