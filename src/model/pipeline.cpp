@@ -12,6 +12,7 @@
 #include "sentence/output_format.h"
 #include "unilib/utf8.h"
 #include "utils/getwhole.h"
+#include "utils/named_values.h"
 
 namespace ufal {
 namespace udpipe {
@@ -70,6 +71,7 @@ bool pipeline::process(istream& is, ostream& os, string& error) const {
   error.clear();
 
   sentence s;
+  vector<sentence> doc;
 
   unique_ptr<input_format> reader;
   if (input == "tokenizer") {
@@ -84,21 +86,43 @@ bool pipeline::process(istream& is, ostream& os, string& error) const {
   unique_ptr<output_format> writer(output_format::new_output_format(output));
   if (!writer) return error.assign("The requested output format '").append(output).append("' does not exist!"), false;
 
+  // Process either individual sentences or the whole document
+  named_values::map parser_options;
+  if (!named_values::parse(parser, parser_options, error)) return false;
+
+  bool whole_document = parser_options.count("whole_document");
+
   string block;
   while (immediate ? reader->read_block(is, block) : bool(getwhole(is, block))) {
     reader->set_text(block);
     while (reader->next_sentence(s, error)) {
-      if (tagger != NONE)
-        if (!m->tag(s, tagger, error))
-          return false;
+      if (whole_document) {
+        doc.push_back(s);
+      } else {
+        if (tagger != NONE)
+          if (!m->tag(s, tagger, error))
+            return false;
 
-      if (parser != NONE)
-        if (!m->parse(s, parser, error))
-          return false;
+        if (parser != NONE)
+          if (!m->parse(s, parser, error))
+            return false;
 
-      writer->write_sentence(s, os);
+        writer->write_sentence(s, os);
+      }
     }
     if (!error.empty()) return false;
+  }
+  if (whole_document) {
+    if (tagger != NONE)
+      for (auto&& s : doc)
+          if (!m->tag(s, tagger, error))
+            return false;
+
+    if (!m->parse_document(doc, parser, error))
+      return false;
+
+    for (auto&& s : doc)
+      writer->write_sentence(s, os);
   }
   writer->finish_document(os);
 

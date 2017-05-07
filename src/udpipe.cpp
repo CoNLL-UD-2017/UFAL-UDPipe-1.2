@@ -52,7 +52,6 @@ int main(int argc, char* argv[]) {
                        {"outfile", options::value::any},
                        {"output", options::value::any},
                        {"parse", options::value::none},
-                       {"parse_document", options::value::any},
                        {"parser", options::value::any},
                        {"tag", options::value::none},
                        {"tagger", options::value::any},
