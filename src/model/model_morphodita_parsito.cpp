@@ -8,12 +8,14 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include <algorithm>
+#include <limits>
 
 #include "model_morphodita_parsito.h"
 #include "tokenizer/morphodita_tokenizer_wrapper.h"
 #include "unilib/unicode.h"
 #include "unilib/utf8.h"
 #include "utils/getpara.h"
+#include "utils/parse_double.h"
 #include "utils/parse_int.h"
 
 namespace ufal {
@@ -78,6 +80,10 @@ bool model_morphodita_parsito::tag(sentence& s, const string& /*options*/, strin
 }
 
 bool model_morphodita_parsito::parse(sentence& s, const string& options, string& error) const {
+  return parse(s, options, error, nullptr);
+}
+
+bool model_morphodita_parsito::parse(sentence& s, const string& options, string& error, double* cost) const {
   error.clear();
 
   if (!parser) return error.assign("No parser defined for the UDPipe model!"), false;
@@ -105,7 +111,7 @@ bool model_morphodita_parsito::parse(sentence& s, const string& options, string&
     c->tree.nodes.back().misc.assign(s.words[i].misc);
   }
 
-  parser->parse(c->tree, beam_search);
+  parser->parse(c->tree, beam_search, cost);
   for (size_t i = 1; i < s.words.size(); i++)
     s.set_head(i, c->tree.nodes[i].head, c->tree.nodes[i].deprel);
 
@@ -114,9 +120,97 @@ bool model_morphodita_parsito::parse(sentence& s, const string& options, string&
 }
 
 bool model_morphodita_parsito::parse_document(vector<sentence>& document, const string& options, string& error) const {
-  for (auto&& s : document)
-    if (!parse(s, options, error))
-      return false;
+  named_values::map parser_options;
+  if (!named_values::parse(options, parser_options, error))
+    return false;
+
+  int max_sentence_len = 50;
+  if (parser_options.count("max_sentence_len") && !parse_int(parser_options["max_sentence_len"], "max sentence len", max_sentence_len, error))
+    return false;
+
+  double keep_boundary_bonus = 0.;
+  if (parser_options.count("keep_boundary_bonus") && !parse_double(parser_options["keep_boundary_bonus"], "keep boundary bonus", keep_boundary_bonus, error))
+    return false;
+
+  double sentence_logprob = 0.;
+  if (parser_options.count("sentence_logprob") && !parse_double(parser_options["sentence_logprob"], "sentence logprob", sentence_logprob, error))
+    return false;
+
+  sentence all_words;
+  vector<bool> sentence_boundary(1, true);
+  vector<bool> token_boundary(1, true);
+  for (auto&& s : document) {
+    unsigned offset = all_words.words.size() - 1;
+    for (unsigned i = 1; i < s.words.size(); i++) {
+      all_words.words.push_back(s.words[i]);
+      all_words.words.back().id += offset;
+      sentence_boundary.push_back(i+1 == s.words.size());
+      token_boundary.push_back(true);
+    }
+
+    for (auto&& mwt : s.multiword_tokens) {
+      all_words.multiword_tokens.push_back(mwt);
+      all_words.multiword_tokens.back().id_first += offset;
+      all_words.multiword_tokens.back().id_last += offset;
+      for (int i = all_words.multiword_tokens.back().id_first; i < all_words.multiword_tokens.back().id_last; i++)
+        token_boundary[i] = false;
+    }
+  }
+
+  vector<double> best_logprob(all_words.words.size(), -numeric_limits<double>::infinity()); best_logprob[0] = 0.;
+  vector<unsigned> best_length(all_words.words.size(), 0);
+  sentence s;
+
+  for (unsigned start = 1; start < all_words.words.size(); start++) {
+    if (!token_boundary[start - 1]) continue;
+    s.clear();
+    for (unsigned end = start + 1; end <= all_words.words.size() && (end - start) <= unsigned(max_sentence_len); end++) {
+      s.words.push_back(all_words.words[end - 1]);
+      s.words.back().id -= start - 1;
+      if (!token_boundary[end - 1]) continue;
+
+      for (unsigned i = 1; i < s.words.size(); i++) {
+        s.words[i].head = -1;
+        s.words[i].children.clear();
+      }
+
+      double cost;
+      if (!parse(s, options, error, &cost)) return false;
+      cost += sentence_logprob + keep_boundary_bonus * (int(sentence_boundary[start - 1]) + int(sentence_boundary[end - 1]));
+      if (best_logprob[start - 1] + cost > best_logprob[end - 1]) {
+        best_logprob[end - 1] = best_logprob[start - 1] + cost;
+        best_length[end - 1] = end - start;
+      }
+    }
+  }
+
+  vector<unsigned> sentence_lengths;
+  for (unsigned end = all_words.words.size(); end > 1; end -= best_length[end - 1])
+    sentence_lengths.push_back(best_length[end - 1]);
+
+  document.clear();
+
+  sentence_lengths.push_back(1);
+  reverse(sentence_lengths.begin(), sentence_lengths.end());
+  for (unsigned i = 1; i < sentence_lengths.size(); i++) {
+    sentence_lengths[i] += sentence_lengths[i - 1];
+
+    document.emplace_back();
+    while (!all_words.multiword_tokens.empty() && unsigned(all_words.multiword_tokens.front().id_first) < sentence_lengths[i]) {
+      document.back().multiword_tokens.push_back(all_words.multiword_tokens.front());
+      document.back().multiword_tokens.back().id_first -= sentence_lengths[i-1] - 1;
+      document.back().multiword_tokens.back().id_last -= sentence_lengths[i-1] - 1;
+      all_words.multiword_tokens.erase(all_words.multiword_tokens.begin());
+    }
+
+    for (unsigned word = sentence_lengths[i - 1]; word < sentence_lengths[i]; word++) {
+      document.back().words.push_back(all_words.words[word]);
+      document.back().words.back().id -= sentence_lengths[i-1] - 1;
+      document.back().words.back().head = -1;
+      document.back().words.back().children.clear();
+    }
+    if (!parse(document.back(), options, error)) return false;
+  }
 
   return true;
 }

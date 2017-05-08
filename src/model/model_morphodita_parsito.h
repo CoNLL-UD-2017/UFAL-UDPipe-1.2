@@ -27,6 +27,8 @@ class model_morphodita_parsito : public model {
   virtual bool tag(sentence& s, const string& options, string& error) const override;
   virtual bool parse(sentence& s, const string& options, string& error) const override;
   virtual bool parse_document(vector<sentence>& document, const string& options, string& error) const override;
+  bool parse(sentence& s, const string& options, string& error, double* cost) const;
+
 
   static model* load(istream& is);
 
