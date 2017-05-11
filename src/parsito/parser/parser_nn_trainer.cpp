@@ -294,7 +294,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
           nodes_embeddings[i].resize(parser.embeddings.size());
           for (size_t j = 0; j < parser.embeddings.size(); j++) {
             parser.values[j].extract(t.nodes[i], word);
-            nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
+            nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && parameters.word_dropout && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
           }
         }
 
@@ -361,7 +361,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
             nodes_embeddings[i].resize(parser.embeddings.size());
             for (size_t j = 0; j < parser.embeddings.size(); j++) {
               parser.values[j].extract(t.nodes[i], word);
-              nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
+              nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && parameters.word_dropout && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
             }
           }
 
