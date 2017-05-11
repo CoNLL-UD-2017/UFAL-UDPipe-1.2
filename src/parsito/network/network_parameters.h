@@ -44,6 +44,7 @@ struct network_parameters {
   float maxnorm_regularization;
   float dropout_hidden, dropout_input;
   bool early_stopping;
+  float word_dropout;
 };
 
 } // namespace parsito

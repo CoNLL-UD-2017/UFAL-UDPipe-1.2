@@ -33,6 +33,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
 
   // Random generator with fixed seed for reproducibility
   mt19937 generator(42);
+  bernoulli_distribution word_dropout(parameters.word_dropout);
 
   // Check that all non-root nodes have heads and nonempty deprel
   for (auto&& tree : train)
@@ -293,7 +294,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
           nodes_embeddings[i].resize(parser.embeddings.size());
           for (size_t j = 0; j < parser.embeddings.size(); j++) {
             parser.values[j].extract(t.nodes[i], word);
-            nodes_embeddings[i][j] = parser.embeddings[j].lookup_word(word, word_buffer);
+            nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
           }
         }
 
@@ -339,7 +340,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
 
           // If a node was linked, recompute its embeddings as deprel has changed
           if (child >= 0)
-            for (size_t i = 0; i < parser.embeddings.size(); i++) {
+            for (size_t i = 0; i < parser.embeddings.size(); i++) if (!parser.values[i].is_form_extractor()) {
               parser.values[i].extract(t.nodes[child], word);
               nodes_embeddings[child][i] = parser.embeddings[i].lookup_word(word, word_buffer);
             }
@@ -360,7 +361,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
             nodes_embeddings[i].resize(parser.embeddings.size());
             for (size_t j = 0; j < parser.embeddings.size(); j++) {
               parser.values[j].extract(t.nodes[i], word);
-              nodes_embeddings[i][j] = parser.embeddings[j].lookup_word(word, word_buffer);
+              nodes_embeddings[i][j] = parser.values[j].is_form_extractor() && word_dropout(generator) ? parser.embeddings[j].unknown_word() : parser.embeddings[j].lookup_word(word, word_buffer);
             }
           }
 
@@ -388,7 +389,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
               // Perform probed transition
               int child = parser.system->perform(conf_eval, transition);
               if (child >= 0)
-                for (size_t i = 0; i < parser.embeddings.size(); i++) {
+                for (size_t i = 0; i < parser.embeddings.size(); i++) if (!parser.values[i].is_form_extractor()) {
                   parser.values[i].extract(t_eval.nodes[child], word);
                   nodes_embeddings_eval[child][i] = parser.embeddings[i].lookup_word(word, word_buffer);
                 }
@@ -415,7 +416,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
 
                 // If a node was linked, recompute its embeddings as deprel has changed
                 if (child >= 0)
-                  for (size_t i = 0; i < parser.embeddings.size(); i++) {
+                  for (size_t i = 0; i < parser.embeddings.size(); i++) if (!parser.values[i].is_form_extractor()) {
                     parser.values[i].extract(t_eval.nodes[child], word);
                     nodes_embeddings_eval[child][i] = parser.embeddings[i].lookup_word(word, word_buffer);
                   }
@@ -447,7 +448,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
 
             // If a node was linked, recompute its embeddings as deprel has changed
             if (child >= 0)
-              for (size_t i = 0; i < parser.embeddings.size(); i++) {
+              for (size_t i = 0; i < parser.embeddings.size(); i++) if (!parser.values[i].is_form_extractor()) {
                 parser.values[i].extract(t.nodes[child], word);
                 nodes_embeddings[child][i] = parser.embeddings[i].lookup_word(word, word_buffer);
               }

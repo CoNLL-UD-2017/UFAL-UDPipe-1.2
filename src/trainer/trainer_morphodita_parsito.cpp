@@ -315,6 +315,7 @@ bool trainer_morphodita_parsito::train_parser(const vector<sentence>& training, 
       double l2 = run <= 1 ? 0.5 : hyperparameter_uniform(run, 3, 0.2, 0.6);
       if (!option_double(parser, "l2", l2, error)) return false;
       bool early_stopping = !heldout.empty(); if (!option_bool(parser, "early_stopping", early_stopping, error)) return false;
+      double word_dropout = 0.0; if (!option_double(parser, "word_dropout", word_dropout, error)) return false;
 
       if (run >= 1) cerr << "Random search run " << run << ", structured_interval=" << structured_interval
                          << ", learning_rate=" << fixed << setprecision(8) << learning_rate
@@ -339,6 +340,7 @@ bool trainer_morphodita_parsito::train_parser(const vector<sentence>& training, 
       parameters.dropout_hidden = 0;
       parameters.dropout_input = 0;
       parameters.early_stopping = early_stopping;
+      parameters.word_dropout = word_dropout;
 
       // Tag the input if required
       unique_ptr<model> tagger;
