@@ -338,6 +338,8 @@ void neural_network_trainer::backpropagate_template(vector<embedding>& embedding
       w.error_embedding[i][id].clear();
     }
     w.error_embedding_nonempty[i].clear();
+
+    embeddings[i].update_weights();
   }
 
   // Maxnorm regularize the updated weights

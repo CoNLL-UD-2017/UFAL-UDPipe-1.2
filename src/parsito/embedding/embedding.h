@@ -32,16 +32,24 @@ class embedding {
 
   bool can_update_weights(int id) const;
 
+  void update_weights();
+
   void load(binary_decoder& data);
   void save(binary_encoder& enc) const;
 
-  void create(unsigned dimension, int updatable_index, const vector<pair<string, vector<float>>>& words, const vector<float>& unknown_weights);
+  void create(unsigned dimension, int updatable_index, const vector<pair<string, vector<float>>>& words, const vector<float>& unknown_weights, bool subform);
   void export_embeddings(vector<pair<string, vector<float>>>& words, vector<float>& unknown_weights) const;
  private:
   int updatable_index, unknown_index;
+  bool subform;
+
+  mutable unordered_map<string, int> decomposed_forms;
+  mutable vector<vector<int>> subforms;
+  mutable vector<vector<float>> previous_weights;
+  mutable vector<int> active_subforms;
 
   unordered_map<string, int> dictionary;
-  vector<float> weights;
+  mutable vector<float> weights;
 };
 
 } // namespace parsito

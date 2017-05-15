@@ -17,6 +17,7 @@ namespace parsito {
 void value_extractor::extract(const node& n, string& value) const {
   switch (selector) {
     case FORM:
+    case SUBFORM:
       value.assign(n.form);
       break;
     case LEMMA:
@@ -63,6 +64,8 @@ bool value_extractor::create(string_piece description, string& error) {
 
   if (description == "form")
     selector = FORM;
+  else if (description == "subform")
+    selector = SUBFORM;
   else if (description == "lemma")
     selector = LEMMA;
   else if (description == "lemma_id")

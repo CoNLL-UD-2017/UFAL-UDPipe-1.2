@@ -221,7 +221,7 @@ void parser_nn_trainer::train(const string& transition_system_name, const string
 
     // Add the embedding
     parser.embeddings.emplace_back();
-    parser.embeddings.back().create(dimension, updatable_index, weights, unknown_weights);
+    parser.embeddings.back().create(dimension, updatable_index, weights, unknown_weights, parser.values.back().is_subform_extractor());
 
     // Count the cover of this embedding
     string buffer;

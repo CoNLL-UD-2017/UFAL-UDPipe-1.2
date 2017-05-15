@@ -7,6 +7,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include <algorithm>
 #include <limits>
 
 #include "common.h"
@@ -20,6 +21,53 @@ namespace parsito {
 
 int embedding::lookup_word(const string& word, string& buffer) const {
   using namespace unilib;
+
+  if (subform) {
+    auto it = decomposed_forms.find(word);
+
+    if (it != decomposed_forms.end() && it->second < 0) return it->second;
+
+    if (it == decomposed_forms.end()) {
+      string word_bow_eow;
+      word_bow_eow.append("<").append(word).append(">");
+
+      subforms.emplace_back();
+      for (string_piece form(word_bow_eow); form.len; utf8::decode(form.str, form.len)) {
+        string_piece substr = form;
+        for (unsigned len = 0; len < 4 && substr.len; len++) {
+          utf8::decode(substr.str, substr.len);
+          if (len) {
+            buffer.assign(form.str, substr.str - form.str);
+            auto sub_it = dictionary.find(buffer);
+            if (sub_it != dictionary.end())
+              subforms.back().push_back(sub_it->second);
+          }
+        }
+      }
+
+      if (subforms.back().empty()) {
+        if (unknown_index < 0) {
+          subforms.pop_back();
+          decomposed_forms.emplace(word, unknown_index);
+          return unknown_index;
+        }
+        subforms.back().push_back(unknown_index);
+      }
+
+      sort(subforms.back().begin(), subforms.back().end());
+      subforms.back().erase(unique(subforms.back().begin(), subforms.back().end()), subforms.back().end());
+
+      unsigned id = subforms.size() - 1;
+      assert((weights.size() / dimension) == id);
+      assert(previous_weights.size() == id);
+
+      previous_weights.emplace_back(dimension + 1, 0.f);
+      weights.resize(weights.size() + dimension);
+      it = decomposed_forms.emplace(word, id).first;
+    }
+
+    return it->second;
+  }
 
   auto it = dictionary.find(word);
   if (it != dictionary.end()) return it->second;
@@ -72,13 +120,47 @@ int embedding::unknown_word() const {
 }
 
 float* embedding::weight(int id) {
-  if (id < 0 || id * dimension >= weights.size()) return nullptr;
-  return weights.data() + id * dimension;
+  return (float*) ((const embedding*)this)->weight(id);
 }
 
 const float* embedding::weight(int id) const {
   if (id < 0 || id * dimension >= weights.size()) return nullptr;
+
+  if (subform) {
+    if (!previous_weights[id].empty() && !previous_weights[id][dimension]) {
+      fill_n(weights.begin() + id * dimension, dimension, 0.f);
+      for (auto&& subform : subforms[id])
+        for (unsigned j = 0; j < dimension; j++)
+          weights[id * dimension + j] += weights[subform * dimension + j];
+
+      float normalize = 1.f / float(subforms[id].size());
+      for (unsigned j = 0; j < dimension; j++)
+        weights[id * dimension + j] *= normalize;
+
+      copy_n(weights.begin() + id * dimension, dimension, previous_weights[id].begin());
+      previous_weights[id][dimension] = 1.f;
+      active_subforms.push_back(id);
+    }
+  }
+
   return weights.data() + id * dimension;
+}
+
+void embedding::update_weights() {
+  if (subform) {
+    for (auto&& id : active_subforms) {
+      float normalize = 1.f / float(subforms[id].size());
+      for (unsigned j = 0; j < dimension; j++)
+        weights[id * dimension + j] = (weights[id * dimension + j] - previous_weights[id][j]) * normalize;
+
+      for (auto&& subform : subforms[id])
+        for (unsigned j = 0; j < dimension; j++)
+          weights[subform * dimension + j] += weights[id * dimension + j];
+
+      previous_weights[id][dimension] = 0.f;
+    }
+    active_subforms.clear();
+  }
 }
 
 void embedding::load(binary_decoder& data) {
@@ -96,10 +178,14 @@ void embedding::load(binary_decoder& data) {
   }
 
   unknown_index = data.next_1B() ? dictionary.size() : -1;
+  subform = data.next_1B();
 
   // Load weights
   const float* weights_ptr = data.next<float>(dimension * (dictionary.size() + (unknown_index >= 0)));
   weights.assign(weights_ptr, weights_ptr + dimension * (dictionary.size() + (unknown_index >= 0)));
+
+  subforms.resize(weights.size() / dimension);
+  previous_weights.resize(weights.size() / dimension);
 }
 
 } // namespace parsito

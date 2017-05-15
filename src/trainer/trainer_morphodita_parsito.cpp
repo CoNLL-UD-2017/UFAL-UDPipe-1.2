@@ -286,6 +286,8 @@ bool trainer_morphodita_parsito::train_parser(const vector<sentence>& training, 
       int embedding_xpostag = 0; if (!option_int(parser, "embedding_xpostag", embedding_xpostag, error)) return false;
       int embedding_form = 50; if (!option_int(parser, "embedding_form", embedding_form, error)) return false;
       int embedding_form_mincount = 2; if (!option_int(parser, "embedding_form_mincount", embedding_form_mincount, error)) return false;
+      int embedding_subform = 0; if (!option_int(parser, "embedding_subform", embedding_subform, error)) return false;
+      int embedding_subform_mincount = 2; if (!option_int(parser, "embedding_subform_mincount", embedding_subform_mincount, error)) return false;
       int embedding_lemma = 0; if (!option_int(parser, "embedding_lemma", embedding_lemma, error)) return false;
       int embedding_deprel = 20; if (!option_int(parser, "embedding_deprel", embedding_deprel, error)) return false;
       string embeddings;
@@ -295,6 +297,11 @@ bool trainer_morphodita_parsito::train_parser(const vector<sentence>& training, 
       if (embedding_form) {
         embeddings.append("form ").append(to_string(embedding_form)).append(" ").append(to_string(embedding_form_mincount));
         if (!option_str(parser, "embedding_form_file").empty()) embeddings.append(" ").append(option_str(parser, "embedding_form_file"));
+        embeddings.push_back('\n');
+      }
+      if (embedding_subform) {
+        embeddings.append("subform ").append(to_string(embedding_subform)).append(" ").append(to_string(embedding_subform_mincount));
+        if (!option_str(parser, "embedding_subform_file").empty()) embeddings.append(" ").append(option_str(parser, "embedding_subform_file"));
         embeddings.push_back('\n');
       }
       if (embedding_lemma) {

@@ -24,9 +24,10 @@ class value_extractor {
   bool create(string_piece description, string& error);
 
   bool is_form_extractor() { return selector == FORM; }
+  bool is_subform_extractor() { return selector == SUBFORM; }
  private:
   enum value_t { FORM = 0, LEMMA = 1, LEMMA_ID = 2, TAG = 3, UNIVERSAL_TAG = 4,
-    FEATS = 5, UNIVERSAL_TAG_FEATS = 6, DEPREL = 7 };
+    FEATS = 5, UNIVERSAL_TAG_FEATS = 6, DEPREL = 7, SUBFORM = 8 };
   value_t selector;
 };
 
